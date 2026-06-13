@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OO-liga · VM-Profeten</title>
+<style>
+  :root {
+    --bg: #f4f7fa;
+    --card: #ffffff;
+    --text: #1b2733;
+    --muted: #6b7785;
+    --accent: #d6312b;
+    --green: #2e8b3d;
+    --gold: #f2b705;
+    --silver: #b9c2cc;
+    --bronze: #cd8b4a;
+    --row-alt: #f1f5f9;
+    --line: #e3e9ef;
+    --pitch: #3a9d4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--pitch);
+    background-image:
+      repeating-linear-gradient(90deg,
+        rgba(255,255,255,0.04) 0 60px,
+        rgba(0,0,0,0.04) 60px 120px),
+      radial-gradient(circle at 50% -10%, rgba(255,255,255,0.18), transparent 55%);
+    background-attachment: fixed;
+    padding: 18px 14px 40px;
+  }
+  .wrap { max-width: 740px; margin: 0 auto; }
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .badge-vm {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: #fff; font-weight: 700; font-size: 14px; letter-spacing: .3px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+  .badge-vm .ball { font-size: 18px; }
+  .source-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.95); color: var(--accent);
+    text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 7px 13px; border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15); transition: background .15s;
+  }
+  .source-link:hover { background: #fff; }
+  .source-link svg { width: 13px; height: 13px; }
+  .card {
+    background: var(--card); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 8px 28px rgba(0,0,0,.18);
+  }
+  header { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--muted); font-weight: 700;
+    padding: 10px 12px; background: #fafcfe; border-bottom: 1px solid var(--line);
+  }
+  thead th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td { padding: 11px 12px; font-size: 14px; border-bottom: 1px solid var(--line); }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  tbody tr:last-child td { border-bottom: none; }
+  .rank { width: 48px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .rank .medal {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%; font-size: 13px;
+    color: #1b2733; font-weight: 800;
+  }
+  .rank.r1 .medal { background: var(--gold); }
+  .rank.r2 .medal { background: var(--silver); }
+  .rank.r3 .medal { background: var(--bronze); color:#fff; }
+  .name { font-weight: 500; }
+  .pts { font-weight: 800; color: var(--accent); }
+  .correct { color: var(--green); font-weight: 600; }
+  .filters { display: flex; gap: 8px; padding: 14px 20px 0; }
+  .filter-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--muted);
+    font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 999px;
+    cursor: pointer; transition: all .15s; font-family: inherit;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .loading, .error { text-align: center; padding: 44px 16px; color: var(--muted); }
+  .error { color: var(--accent); }
+  .error code { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); word-break: break-all; }
+  footer { margin-top: 14px; font-size: 11px; color: rgba(255,255,255,.85); text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="badge-vm"><span class="ball">&#9917;</span> Fotball-VM 2026</span>
+    <a class="source-link"
+       href="https://vglive.vg.no/profeten/season/102/liga/10213"
+       target="_blank" rel="noopener noreferrer">
+      Full oversikt hos VG
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 17L17 7M9 7h8v8"/>
+      </svg>
+    </a>
+  </div>
+  <div class="card">
+    <header>
+      <h1 id="title">VM-Profeten &middot; OO-liga</h1>
+      <div class="sub">
+        <span id="members"></span>
+        <span id="updated"></span>
+      </div>
+    </header>
+    <div class="filters">
+      <button class="filter-btn active" id="btn-top" type="button">Topp 10</button>
+      <button class="filter-btn" id="btn-all" type="button">Vis alle</button>
+    </div>
+    <div id="content">
+      <div class="loading">Laster tabell&hellip;</div>
+    </div>
+  </div>
+  <footer>Data fra VG Live &middot; oppdateres ved innlasting</footer>
+</div>
+<script>
+  const API = "https://vglive.vg.no/bff/vg/predictions-game/seasons/102/leagues/10213";
+  const PROXY = "https://corsproxy.io/?url=";
+
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  let allStandings = [];
+  let showTop10 = true;
+
+  function renderTable() {
+    const list = showTop10 ? allStandings.slice(0, 10) : allStandings;
+    const rows = list.map(function(s) {
+      const rc = s.rank <= 3 ? ' r' + s.rank : '';
+      const medal = s.rank <= 3
+        ? '<span class="medal">' + s.rank + '</span>' : s.rank;
+      const correct = (s.totalCorrectPredictions != null ? s.totalCorrectPredictions : 0);
+      return '<tr>' +
+        '<td class="rank' + rc + '">' + medal + '</td>' +
+        '<td class="name">' + esc(s.userName) + '</td>' +
+        '<td class="num correct">' + correct + '</td>' +
+        '<td class="num pts">' + s.totalPoints + '</td>' +
+        '</tr>';
+    }).join('');
+
+    document.getElementById('content').innerHTML =
+      '<table><thead><tr>' +
+      '<th class="rank">#</th><th>Navn</th>' +
+      '<th class="num">Rette</th><th class="num">Poeng</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function render(data) {
+    const lg = (data.league && data.league.data) || {};
+    document.getElementById('title').textContent = lg.name || 'VM-Profeten \u00b7 OO-liga';
+    document.getElementById('members').textContent =
+      (lg.membersCount ? lg.membersCount + ' deltakere' : '');
+    document.getElementById('updated').textContent =
+      'Oppdatert ' + new Date().toLocaleString('no-NO',
+        {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    allStandings = data.standings || [];
+    renderTable();
+  }
+
+  document.getElementById('btn-top').addEventListener('click', function() {
+    showTop10 = true;
+    this.classList.add('active');
+    document.getElementById('btn-all').classList.remove('active');
+    renderTable();
+  });
+  document.getElementById('btn-all').addEventListener('click', function() {
+    showTop10 = false;
+    this.classList.add('active');
+    document.getElementById('btn-top').classList.remove('active');
+    renderTable();
+  });
+
+  async function load() {
+    document.getElementById('content').innerHTML =
+      '<div class="loading">Laster tabell&hellip;</div>';
+    try {
+      const r = await fetch(API, { headers: { 'Accept': 'application/json' } });
+      if (r.ok) return render(await r.json());
+    } catch (e) {}
+    try {
+      const r = await fetch(PROXY + encodeURIComponent(API));
+      if (r.ok) return render(await r.json());
+      throw new Error('Proxy svarte ' + r.status);
+    } catch (e) {
+      document.getElementById('content').innerHTML =
+        '<div class="error">Klarte ikke &aring; hente tabellen.' +
+        '<code>' + esc(e.message) + '</code></div>';
+    }
+  }
+  load();
+</script>
+</body>
+</html>
