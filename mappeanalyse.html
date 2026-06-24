@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mappeanalyse</title>
+<script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
 <style>
   :root {
     --bg: #f7f8fa;
@@ -55,6 +56,9 @@
 
   .header h1 { font-size: 16px; font-weight: 600; }
   .header p { font-size: 12px; color: var(--muted); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .auth-status { font-size: 12px; color: var(--muted); }
+  .auth-status.signed-in { color: var(--ok); }
 
   .main { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
 
@@ -252,11 +256,50 @@
   <div class="header-icon">📁</div>
   <div>
     <h1>Mappeanalyse</h1>
-    <p>Rekursiv filtellingfor SharePoint-dokumentbibliotek</p>
+    <p>Rekursiv filtelling for SharePoint-dokumentbibliotek</p>
+  </div>
+  <div class="header-right">
+    <span class="auth-status" id="authStatus">Ikke innlogget</span>
+    <button class="btn-ghost" id="authBtn" onclick="toggleAuth()">Logg inn</button>
   </div>
 </div>
 
 <div class="main">
+
+  <div class="card" id="msalCard">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px">
+      <span style="font-size:13px; font-weight:600; color:var(--text)">Azure AD-konfigurasjon</span>
+      <button class="btn-ghost" onclick="toggleMsalCard()" id="msalToggleBtn" style="padding:2px 8px; font-size:11px">Skjul</button>
+    </div>
+    <div id="msalFields">
+      <div class="input-row" style="margin-bottom:8px">
+        <div class="field">
+          <label>Client ID (App-registrering)</label>
+          <input type="text" id="clientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <div class="field">
+          <label>Tenant ID</label>
+          <input type="text" id="tenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <button class="btn-ghost" onclick="saveAndInitMsal()" style="align-self:flex-end">Lagre</button>
+      </div>
+      <p class="hint">💡 Be en Azure AD-admin om å <a href="#" onclick="showAdminInstructions(); return false;" style="color:var(--accent)">opprette en app-registrering</a> med delegert <strong>AllSites.Read</strong>-tillatelse for SharePoint.</p>
+    </div>
+  </div>
+
+  <div class="card" id="adminInstructions" style="display:none; border-color:#fca5a5; background:var(--danger-bg)">
+    <p style="font-weight:600; margin-bottom:8px; font-size:13px">📋 Instruksjoner til Azure AD-admin</p>
+    <ol style="font-size:12px; color:var(--text); line-height:2; padding-left:18px">
+      <li>Gå til <strong>Azure Portal → Azure Active Directory → App-registreringer → Ny registrering</strong></li>
+      <li>Navn: f.eks. <em>Mappeanalyse SharePoint</em></li>
+      <li>Kontotyper: <em>Kun denne organisasjonskatalogens kontoer</em></li>
+      <li>Redirect URI: velg <strong>SPA</strong> og skriv inn URL-en der denne siden kjøres (f.eks. <code id="currentUrl"></code>)</li>
+      <li>Etter opprettelse: gå til <strong>API-tillatelser → Legg til tillatelse → SharePoint → Delegerte tillatelser → AllSites.Read</strong></li>
+      <li>Klikk <strong>Gi administratorsamtykke</strong></li>
+      <li>Kopier <strong>Application (client) ID</strong> og <strong>Directory (tenant) ID</strong> og gi dem til brukeren</li>
+    </ol>
+    <button class="btn-ghost" onclick="document.getElementById('adminInstructions').style.display='none'" style="margin-top:8px; font-size:12px">Lukk</button>
+  </div>
 
   <div class="card">
     <div class="input-row" style="margin-bottom:12px">
@@ -297,6 +340,120 @@
 </div>
 
 <script>
+// ── MSAL ──────────────────────────────────────────────────────────────────────
+let msalInstance = null;
+
+function loadSavedMsalConfig() {
+  const clientId = localStorage.getItem('mappeanalyse_clientId') || '';
+  const tenantId = localStorage.getItem('mappeanalyse_tenantId') || '';
+  if (clientId) document.getElementById('clientId').value = clientId;
+  if (tenantId) document.getElementById('tenantId').value = tenantId;
+  if (clientId && tenantId) {
+    initMsal(clientId, tenantId);
+    // Collapse config card if already set
+    document.getElementById('msalFields').style.display = 'none';
+    document.getElementById('msalToggleBtn').textContent = 'Vis';
+  }
+}
+
+function initMsal(clientId, tenantId) {
+  msalInstance = new msal.PublicClientApplication({
+    auth: {
+      clientId,
+      authority: `https://login.microsoftonline.com/${tenantId}`,
+      redirectUri: window.location.href.split('#')[0].split('?')[0]
+    },
+    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: false }
+  });
+  msalInstance.initialize().then(() => {
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) updateAuthStatus(accounts[0]);
+  });
+  return msalInstance;
+}
+
+function saveAndInitMsal() {
+  const clientId = document.getElementById('clientId').value.trim();
+  const tenantId = document.getElementById('tenantId').value.trim();
+  if (!clientId || !tenantId) { alert('Fyll inn både Client ID og Tenant ID.'); return; }
+  localStorage.setItem('mappeanalyse_clientId', clientId);
+  localStorage.setItem('mappeanalyse_tenantId', tenantId);
+  initMsal(clientId, tenantId);
+  document.getElementById('msalFields').style.display = 'none';
+  document.getElementById('msalToggleBtn').textContent = 'Vis';
+}
+
+function toggleMsalCard() {
+  const fields = document.getElementById('msalFields');
+  const btn = document.getElementById('msalToggleBtn');
+  const hidden = fields.style.display === 'none';
+  fields.style.display = hidden ? '' : 'none';
+  btn.textContent = hidden ? 'Skjul' : 'Vis';
+}
+
+function showAdminInstructions() {
+  document.getElementById('currentUrl').textContent = window.location.href.split('#')[0].split('?')[0];
+  document.getElementById('adminInstructions').style.display = 'block';
+}
+
+async function getToken(siteUrl) {
+  if (!msalInstance) throw new Error('Konfigurer Azure AD (Client ID og Tenant ID) og klikk Lagre før du laster inn data.');
+  const tenantRoot = new URL(siteUrl).origin;
+  const scopes = [`${tenantRoot}/AllSites.Read`];
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    try {
+      const response = await msalInstance.acquireTokenSilent({ scopes, account: accounts[0] });
+      updateAuthStatus(accounts[0]);
+      return response.accessToken;
+    } catch (e) {
+      if (e instanceof msal.InteractionRequiredAuthError) {
+        const response = await msalInstance.acquireTokenPopup({ scopes });
+        updateAuthStatus(response.account);
+        return response.accessToken;
+      }
+      throw e;
+    }
+  }
+  const response = await msalInstance.loginPopup({ scopes });
+  updateAuthStatus(response.account);
+  return response.accessToken;
+}
+
+async function toggleAuth() {
+  if (!msalInstance) { alert('Konfigurer Azure AD-innstillinger først.'); return; }
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    await msalInstance.logoutPopup({ account: accounts[0] });
+    updateAuthStatus(null);
+  } else {
+    const clientId = document.getElementById('clientId').value.trim() || localStorage.getItem('mappeanalyse_clientId');
+    const tenantId = document.getElementById('tenantId').value.trim() || localStorage.getItem('mappeanalyse_tenantId');
+    if (!clientId || !tenantId) { alert('Konfigurer Azure AD-innstillinger først.'); return; }
+    if (!msalInstance) initMsal(clientId, tenantId);
+    try {
+      const response = await msalInstance.loginPopup({ scopes: ['openid', 'profile'] });
+      updateAuthStatus(response.account);
+    } catch (e) {
+      showError('Innlogging feilet: ' + e.message);
+    }
+  }
+}
+
+function updateAuthStatus(account) {
+  const statusEl = document.getElementById('authStatus');
+  const btnEl = document.getElementById('authBtn');
+  if (account) {
+    statusEl.textContent = account.username || account.name || 'Innlogget';
+    statusEl.className = 'auth-status signed-in';
+    btnEl.textContent = 'Logg ut';
+  } else {
+    statusEl.textContent = 'Ikke innlogget';
+    statusEl.className = 'auth-status';
+    btnEl.textContent = 'Logg inn';
+  }
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let allItems = [];
 let treeData = null;
@@ -332,6 +489,7 @@ async function startLoad() {
 
 // ── Fetch all items (handles paging) ─────────────────────────────────────────
 async function fetchAllItems(siteUrl, libName) {
+  const token = await getToken(siteUrl);
   const encodedLib = encodeURIComponent(libName);
   let url = `${siteUrl}/_api/web/lists/getbytitle('${encodedLib}')/items`
     + `?$select=FileLeafRef,FileDirRef,FSObjType,FileRef,ID`
@@ -346,8 +504,10 @@ async function fetchAllItems(siteUrl, libName) {
     setProgress(Math.min(10 + page * 8, 85), `Henter side ${page} (${items.length} elementer så langt)…`);
 
     const resp = await fetch(url, {
-      headers: { 'Accept': 'application/json;odata=nometadata' },
-      credentials: 'include'
+      headers: {
+        'Accept': 'application/json;odata=nometadata',
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (!resp.ok) {
@@ -687,8 +847,8 @@ function showError(msg) {
   el.classList.add('visible');
 }
 
-// Allow Enter key in inputs
 document.addEventListener('DOMContentLoaded', () => {
+  loadSavedMsalConfig();
   document.querySelectorAll('input[type=text]').forEach(el => {
     el.addEventListener('keydown', e => { if (e.key === 'Enter') startLoad(); });
   });
